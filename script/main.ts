@@ -1,5 +1,19 @@
 import * as nx from './jsnetworkx';
 
+declare global {
+	interface Array<T> {
+		shuffle(): Array<T>;
+	}
+}
+ 
+Array.prototype.shuffle = function () {
+	for (let i = this.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[this[i], this[j]] = [this[j], this[i]];
+	}
+	return this;
+ }
+
 if (!Array.prototype.fill) {
 	Object.defineProperty(Array.prototype, 'fill', {
 		value: function (value) {
@@ -27,6 +41,9 @@ if (!Array.prototype.fill) {
 		}
 	});
 }
+
+
+
 
 class Curso {
 	nomCurso: string;
@@ -92,7 +109,7 @@ class Docente {
 
 }
 
-class Solucion { // representa un clique
+class SolucionClique { // representa un clique
 	solucion
 	resultado
 	rating
@@ -124,6 +141,20 @@ class Solucion { // representa un clique
 }
 
 
+class HorarioSolucion {
+	horario: Array<CursoSeccion>;
+	resultado: number
+	rating: number
+	objetivos: Array<number>
+	
+	constructor(horario, resultado, rating, objetivos) {
+		this.horario = horario;
+		this.resultado = resultado;
+		this.rating = rating;
+		this.objetivos = objetivos;
+	}
+}
+
 class HorarioManager {
 
 	cliques
@@ -133,6 +164,7 @@ class HorarioManager {
 	pesos_objetivo
 	soluciones
 	arrayHorarioHorasNoDeseadas
+	arrAllCursoSeccion: Array<Array<CursoSeccion>>;
 
 	constructor(dificultad_maxima = 100, numero_desado_cursos = 6, peso_rating = 100, po1 = 3, po2 = 3, po3 = 3, po4 = 3, po5 = 0) {
 		this.cliques = []
@@ -144,7 +176,159 @@ class HorarioManager {
 		this.soluciones = []
 	}
 
-	run() {
+	runWEA() {
+		let start_time = new Date()
+
+		let arrBestSolutions = []
+		let arrBestValues = []
+		function shuffle(a) {
+			for (let i = a.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[a[i], a[j]] = [a[j], a[i]];
+			}
+			return a;
+		}
+		function evaluarSolucion(prm_horario: HorarioSolucion) {
+			let horario_size: number = prm_horario.horario.length;
+			let cantHuecoAcum = 0
+			let ratingAcum = 0
+			let dificultadAcum = 0
+			let horasNoDesadasAcum = 0
+			let prioridadAcum = 0
+			let cant_curso = 0
+
+			let horasClase = Array(horario_size).fill([0])
+			let limit = Array(horario_size).fill([[0, 0]])
+			let dificultad: Array<number> = Array(horario_size).fill([0])
+			
+
+			prm_horario.horario.forEach(element => {
+				if (element != null) {
+					ratingAcum += element.docente.rating
+					prioridadAcum += element.curso.prioridad
+					cant_curso += 1
+					for (let index = 0; index < horario_size; index++) {  // cantidad de horas de hueco y horaio
+						let dmin = element.horario[index][0]
+						let dmax = element.horario[index][1]
+						limit[index] = [
+							(limit[index][0] == 0 || (dmin != 0 && dmin < limit[index][0])) ? dmin : limit[index][0],
+							(limit[index][1] == 0 || (dmax > limit[index][1])) ? dmax : limit[index][1]
+						];
+						horasClase[index] += element.horario[index][1] - element.horario[index][0]
+						dificultad[index] += element.curso.dificultad * (dmax - dmin) // dificultad_maxima
+						horasNoDesadasAcum += (dmin != 0) ? this.arrayHorarioHorasNoDeseadas.filter((val, ind) => {
+							return ind >= dmin - 7 && ind <= dmax - 7
+						}).reduce(function (valA, valB) {
+							return valA + valB;
+						}) : 0; // horasNoDesadasAcum
+					}
+				}
+			}); // prm_horario.horario.forEach
+	
+			for (let i = 0; i < horario_size; i++) {
+				if (limit[i][0] != 0)
+					cantHuecoAcum += limit[i][1] - limit[i][0] - horasClase[i]
+				dificultadAcum += dificultad[i] - ((dificultad[i] > this.dificultad_maxima) ? this.dificultad_maxima : 0);
+			}
+	
+			let rating = ratingAcum * this.peso_rating
+			let o1 = - cantHuecoAcum * this.pesos_objetivo[1]
+			let o2 = - dificultadAcum * this.pesos_objetivo[2]
+			let o3 = - horasNoDesadasAcum * this.pesos_objetivo[3]
+			let o4 = - Math.abs(cant_curso - this.numero_desado_cursos) * this.pesos_objetivo[4]
+			let o5 = prioridadAcum * this.pesos_objetivo[5]
+	
+			return {
+				"result": rating + o1 + o2 + o3 + o4 + o5,
+				"rating": rating,
+				"objetivos": [rating, o1, o2, o3, o4, o5]
+			}
+		} // evaluarSolucion
+		function ruleta(prm_arrValues: Array<number>) {
+			
+			// PASO 1: Hallar la suma del arreglo de valores
+			var sum = prm_arrValues.reduce((a, b) => {
+				return a + b; 
+			}, 0);
+			if (sum == 0) return -1;
+
+			// PASO 2: Girar la ruleta y ver a que indice le tocó
+			var ruleta = Math.random() * sum;
+			var acum = 0;
+			for (let i = 0; i < prm_arrValues.length; i++) {
+				const element = prm_arrValues[i];
+				if (element >= acum && element <= (acum += element))
+					return i;
+			}
+		} // ruleta
+
+		function hillClimbing(prm_horario: HorarioSolucion) : void {
+			const horario = prm_horario.horario;
+
+			// PASO 1: Generar arreglo con los indices de los cusos vacios del horario
+			var arrIndexesUnd: Array<number> = [];
+			horario.forEach((val, ind) => {
+				if (val == null)
+					arrIndexesUnd.push(ind);
+			});
+			arrIndexesUnd.shuffle();
+
+			// PASO 2: Por cada indice agregar un curso seccion
+			arrIndexesUnd.forEach( indiceCambio => {
+				// PASO 2.1: Obtener los cursos secciones que no se solapen
+				let arrSolFiltradas = this.arrAllCursoSeccion[indiceCambio].filter((val: CursoSeccion, indCurso) => {
+					for (let i = 0; i < horario.length; i++) {
+						if (horario[i] != null && horario[i].getCross(val))
+							return false;
+					}
+					return true;
+				});
+				if (arrSolFiltradas.length > 0) {
+				// PASO 2.2: Evaluar los cursos secciones y escoger uno nuevo mediante la ruleta
+					let arrSolFiltradas_valor = []
+					let arrSolFiltradas_valor_result = []
+					for (let j = 0; j < arrSolFiltradas.length; j++) { // recorre soluciones filtradas
+						const element = arrSolFiltradas[j];
+						arrSolFiltradas_valor[j] = evaluarSolucion(element);
+						arrSolFiltradas_valor_result[j] = (arrSolFiltradas_valor[j].result > 0) ? Math.pow(arrSolFiltradas_valor[j].result,2) : 0;
+					}
+					const new_index_element = ruleta(arrSolFiltradas_valor_result);
+				// PASO 3.3: Agregar el nuevo curso seccion
+					if (new_index_element >= 0) // si no hay buena solución no inserta
+						horario[indiceCambio] = arrSolFiltradas[new_index_element]
+				}
+			});
+
+		} // hillClimbing
+
+		function mutar(prm_horario: HorarioSolucion, cantIndicesMutacion: number, cantidadMutacion: number) {
+			let arrMutaciones = []
+			for (let i = 0; i < cantidadMutacion; i++) {
+				let arrIndicesMutacion = []
+				for (let j = 0; j < cantIndicesMutacion; j++) {
+					arrIndicesMutacion.push( Math.floor(Math.random()*prm_horario.horario.length ));
+				}
+				arrIndicesMutacion.shuffle();
+				for (let j = 0; j < arrIndicesMutacion.length; j++) {
+					const indexCurso = arrIndicesMutacion[j];
+					let curso: CursoSeccion = this.arrAllCursoSeccion[j][Math.floor(Math.random()*this.arrAllCursoSeccion[j].length)];
+
+				}
+			}
+		}
+		function reemplazar(prm_horario: HorarioSolucion, prm_cursoSeccion: CursoSeccion) {
+			prm_horario.horario.forEach(element => {
+				if (prm_cursoSeccion.getCross(element)) 
+					element = null;
+			});
+			return prm_horario;
+		}
+
+		console.log(`--- Tiempo de calculo del puntaje:  ${new Date().getTime() - start_time.getTime()} segundos ---`)
+	}
+
+	/*
+	runClique() {
 		let arrayCursosSeccion = this.load_data()
 		let G = nx.Graph()
 		let edges_fig = [];
@@ -187,7 +371,11 @@ class HorarioManager {
 		pass
 		print("--- Tiempo de calculo de todos los cliques: %s segundos ---" % (time.time() - start_time))
 
-	} // run
+	} // runClique
+	*/
+
+	
+
 
 	load_data(): Array<CursoSeccion> {
 		let curso_1 = new Curso('Curso 1', 8, 4)
@@ -231,7 +419,7 @@ class HorarioManager {
 			return Math.floor(Math.random() * (max - min)) + min;
 		}
 
-		function creacion_random(cantidad_cursos, cantidad_secciones) {
+		function* creacion_random(cantidad_cursos, cantidad_secciones) {
 			for (let i = 0; i < cantidad_cursos; i++) {
 				const cursillo = new Curso(`Curso ${i + 10}`, 8, getRndInteger(2, 5))
 				for (let j = 0; j < cantidad_secciones; j++) {
@@ -296,7 +484,7 @@ class HorarioManager {
 	} // load_data
 
 
-	evaluar(clique) {
+	evaluarClique(clique) {
 		let horario_size: number = clique[0].horario.length;
 		let cantHuecoAcum = 0
 		let ratingAcum = 0
