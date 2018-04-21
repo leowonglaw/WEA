@@ -77,21 +77,6 @@ class CursoSeccion {
 		this.horario = horario;
 	}
 
-	getCross(cursoSeccion: CursoSeccion) {
-		if (this.curso == cursoSeccion.curso) {
-			return true;
-		}
-		let horario2 = cursoSeccion.horario
-		for (let i = 0; i < this.horario.length; i++) {
-			// (StartA <= EndB) and (EndA >= StartB)
-			if ((this.horario[i][0] != 0 && horario2[i][0] != 0) &&
-				(this.horario[i][0] < horario2[i][1]) && (this.horario[i][1] > horario2[i][0])) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	toString() {
 		return this.curso.nomCurso + "-Sec" + this.seccion;
 	}
@@ -143,17 +128,28 @@ class SolucionClique { // representa un clique
 
 class HorarioSolucion {
 	horario: Array<CursoSeccion>;
-	resultado: number
-	rating: number
+	resultado: number;
+	rating: number;
 	objetivos: Array<number>
 	
-	constructor(horario, resultado, rating, objetivos) {
+	constructor(horario: Array<CursoSeccion>, resultado: number = 0, rating: number = 0, objetivos: Array<number> = []) {
 		this.horario = horario;
 		this.resultado = resultado;
 		this.rating = rating;
 		this.objetivos = objetivos;
 	}
+
+	equals(prm_horarioSolucion: HorarioSolucion) {
+		const horarioA = this.horario;
+		const horarioB = prm_horarioSolucion.horario;
+		for (let i = 0; i < horarioA.length; i++) {
+			if (horarioA[i].seccion != horarioB[i].seccion)
+				return false;
+		}
+		return true;
+	}
 }
+
 
 class HorarioManager {
 
@@ -175,207 +171,6 @@ class HorarioManager {
 
 		this.soluciones = []
 	}
-
-	runWEA() {
-		let start_time = new Date()
-
-		let arrBestSolutions = []
-		let arrBestValues = []
-		function shuffle(a) {
-			for (let i = a.length - 1; i > 0; i--) {
-				const j = Math.floor(Math.random() * (i + 1));
-				[a[i], a[j]] = [a[j], a[i]];
-			}
-			return a;
-		}
-		function evaluarSolucion(prm_horario: HorarioSolucion) {
-			let horario_size: number = prm_horario.horario.length;
-			let cantHuecoAcum = 0
-			let ratingAcum = 0
-			let dificultadAcum = 0
-			let horasNoDesadasAcum = 0
-			let prioridadAcum = 0
-			let cant_curso = 0
-
-			let horasClase = Array(horario_size).fill([0])
-			let limit = Array(horario_size).fill([[0, 0]])
-			let dificultad: Array<number> = Array(horario_size).fill([0])
-			
-
-			prm_horario.horario.forEach(element => {
-				if (element != null) {
-					ratingAcum += element.docente.rating
-					prioridadAcum += element.curso.prioridad
-					cant_curso += 1
-					for (let index = 0; index < horario_size; index++) {  // cantidad de horas de hueco y horaio
-						let dmin = element.horario[index][0]
-						let dmax = element.horario[index][1]
-						limit[index] = [
-							(limit[index][0] == 0 || (dmin != 0 && dmin < limit[index][0])) ? dmin : limit[index][0],
-							(limit[index][1] == 0 || (dmax > limit[index][1])) ? dmax : limit[index][1]
-						];
-						horasClase[index] += element.horario[index][1] - element.horario[index][0]
-						dificultad[index] += element.curso.dificultad * (dmax - dmin) // dificultad_maxima
-						horasNoDesadasAcum += (dmin != 0) ? this.arrayHorarioHorasNoDeseadas.filter((val, ind) => {
-							return ind >= dmin - 7 && ind <= dmax - 7
-						}).reduce(function (valA, valB) {
-							return valA + valB;
-						}) : 0; // horasNoDesadasAcum
-					}
-				}
-			}); // prm_horario.horario.forEach
-	
-			for (let i = 0; i < horario_size; i++) {
-				if (limit[i][0] != 0)
-					cantHuecoAcum += limit[i][1] - limit[i][0] - horasClase[i]
-				dificultadAcum += dificultad[i] - ((dificultad[i] > this.dificultad_maxima) ? this.dificultad_maxima : 0);
-			}
-	
-			let rating = ratingAcum * this.peso_rating
-			let o1 = - cantHuecoAcum * this.pesos_objetivo[1]
-			let o2 = - dificultadAcum * this.pesos_objetivo[2]
-			let o3 = - horasNoDesadasAcum * this.pesos_objetivo[3]
-			let o4 = - Math.abs(cant_curso - this.numero_desado_cursos) * this.pesos_objetivo[4]
-			let o5 = prioridadAcum * this.pesos_objetivo[5]
-	
-			return {
-				"result": rating + o1 + o2 + o3 + o4 + o5,
-				"rating": rating,
-				"objetivos": [rating, o1, o2, o3, o4, o5]
-			}
-		} // evaluarSolucion
-		function ruleta(prm_arrValues: Array<number>) {
-			
-			// PASO 1: Hallar la suma del arreglo de valores
-			var sum = prm_arrValues.reduce((a, b) => {
-				return a + b; 
-			}, 0);
-			if (sum == 0) return -1;
-
-			// PASO 2: Girar la ruleta y ver a que indice le tocó
-			var ruleta = Math.random() * sum;
-			var acum = 0;
-			for (let i = 0; i < prm_arrValues.length; i++) {
-				const element = prm_arrValues[i];
-				if (element >= acum && element <= (acum += element))
-					return i;
-			}
-		} // ruleta
-
-		function hillClimbing(prm_horario: HorarioSolucion) : void {
-			const horario = prm_horario.horario;
-
-			// PASO 1: Generar arreglo con los indices de los cusos vacios del horario
-			var arrIndexesUnd: Array<number> = [];
-			horario.forEach((val, ind) => {
-				if (val == null)
-					arrIndexesUnd.push(ind);
-			});
-			arrIndexesUnd.shuffle();
-
-			// PASO 2: Por cada indice agregar un curso seccion
-			arrIndexesUnd.forEach( indiceCambio => {
-				// PASO 2.1: Obtener los cursos secciones que no se solapen
-				let arrSolFiltradas = this.arrAllCursoSeccion[indiceCambio].filter((val: CursoSeccion, indCurso) => {
-					for (let i = 0; i < horario.length; i++) {
-						if (horario[i] != null && horario[i].getCross(val))
-							return false;
-					}
-					return true;
-				});
-				if (arrSolFiltradas.length > 0) {
-				// PASO 2.2: Evaluar los cursos secciones y escoger uno nuevo mediante la ruleta
-					let arrSolFiltradas_valor = []
-					let arrSolFiltradas_valor_result = []
-					for (let j = 0; j < arrSolFiltradas.length; j++) { // recorre soluciones filtradas
-						const element = arrSolFiltradas[j];
-						arrSolFiltradas_valor[j] = evaluarSolucion(element);
-						arrSolFiltradas_valor_result[j] = (arrSolFiltradas_valor[j].result > 0) ? Math.pow(arrSolFiltradas_valor[j].result,2) : 0;
-					}
-					const new_index_element = ruleta(arrSolFiltradas_valor_result);
-				// PASO 3.3: Agregar el nuevo curso seccion
-					if (new_index_element >= 0) // si no hay buena solución no inserta
-						horario[indiceCambio] = arrSolFiltradas[new_index_element]
-				}
-			});
-
-		} // hillClimbing
-
-		function mutar(prm_horario: HorarioSolucion, cantIndicesMutacion: number, cantidadMutacion: number) {
-			let arrMutaciones = []
-			for (let i = 0; i < cantidadMutacion; i++) {
-				let arrIndicesMutacion = []
-				for (let j = 0; j < cantIndicesMutacion; j++) {
-					arrIndicesMutacion.push( Math.floor(Math.random()*prm_horario.horario.length ));
-				}
-				arrIndicesMutacion.shuffle();
-				for (let j = 0; j < arrIndicesMutacion.length; j++) {
-					const indexCurso = arrIndicesMutacion[j];
-					let curso: CursoSeccion = this.arrAllCursoSeccion[j][Math.floor(Math.random()*this.arrAllCursoSeccion[j].length)];
-
-				}
-			}
-		}
-		function reemplazar(prm_horario: HorarioSolucion, prm_cursoSeccion: CursoSeccion) {
-			prm_horario.horario.forEach(element => {
-				if (prm_cursoSeccion.getCross(element)) 
-					element = null;
-			});
-			return prm_horario;
-		}
-
-		console.log(`--- Tiempo de calculo del puntaje:  ${new Date().getTime() - start_time.getTime()} segundos ---`)
-	}
-
-	/*
-	runClique() {
-		let arrayCursosSeccion = this.load_data()
-		let G = nx.Graph()
-		let edges_fig = [];
-
-		let start_time = new Date()
-		for (let i = 0; i < arrayCursosSeccion.length; i++) {
-			G.add_node(arrayCursosSeccion[i])
-			for (let j = 0; j < arrayCursosSeccion.length; j++) {
-				if (!arrayCursosSeccion[i].getCross(arrayCursosSeccion[j])) {
-					arrayCursosSeccion[i].vecinos.push(arrayCursosSeccion[j])
-					arrayCursosSeccion[j].vecinos.push(arrayCursosSeccion[i])
-					edges_fig.push((arrayCursosSeccion[i], arrayCursosSeccion[j]))
-				}
-			}
-		}
-
-		//self.find_cliques(remaining_nodes=copy.copy(arrayCursosSeccion))
-		console.log(`--- Tiempo de calculo de maximals cliques: ${new Date().getTime() - start_time.getTime()} segundos ---`)
-
-		start_time = new Date()
-		for clique in self.cliques:
-			bisect.insort(self.soluciones, new Solucion(solucion = clique, ** this.evaluar(clique)))
-		console.log(`--- Tiempo de calculo del puntaje:  ${new Date().getTime() - start_time.getTime()} segundos ---`)
-
-		//[print(solucion) for solucion in self.soluciones]
-
-
-		G.add_edges_from(edges_fig)
-		pos = nx.spring_layout(G)
-
-		start_time = time.time()
-
-		countClique = 0
-		self.all_cliques = []
-		#for c in nx.algorithms.clique.enumerate_all_cliques(G):
-			for c in nx.algorithms.approximation.clique.max_clique(G):
-		#self.all_cliques.append(c)
-		#print(c)
-		countClique += 1
-		pass
-		print("--- Tiempo de calculo de todos los cliques: %s segundos ---" % (time.time() - start_time))
-
-	} // runClique
-	*/
-
-	
-
 
 	load_data(): Array<CursoSeccion> {
 		let curso_1 = new Curso('Curso 1', 8, 4)
@@ -484,7 +279,278 @@ class HorarioManager {
 	} // load_data
 
 
-	evaluarClique(clique) {
+
+} // HorarioManager
+
+
+interface AlgorithmRunner {
+	dificultad_maxima: number;
+	numero_desado_cursos: number;
+	peso_rating
+	pesos_objetivo
+	soluciones
+	arrayHorarioHorasNoDeseadas
+	arrAllCursoSeccion: Array<Array<CursoSeccion>>;
+
+	getCross(cursoSeccionA: CursoSeccion, cursoSeccionB: CursoSeccion) : boolean;
+	evaluarSolucion(prm);
+	run();
+}  
+
+class ArrayBestSolutions<HorarioSolucion> extends Array<HorarioSolucion> {
+
+	CANT_MAX_BEST_SOL: number;
+
+	constructor(prm_cantMaxBestSol: number){
+		super();
+		this.CANT_MAX_BEST_SOL = prm_cantMaxBestSol;
+	}
+	insertOrdered(prm_horarioSolucion: HorarioSolucion) {
+		let index = this.sortedIndex(this, prm_horarioSolucion);
+		for (; index < this.CANT_MAX_BEST_SOL; index++) {
+			if (this[index].resultado == prm_horarioSolucion.resultado) {
+				if (this.arrBestSolutions[index].equals(prm_horarioSolucion)) {
+					return;
+				}
+			} else {
+				this.splice(res.index, 0, element);
+				return;
+			}
+		}
+	}
+	private sortedIndex(array: Array<HorarioSolucion>, value: HorarioSolucion) {
+		var low = 0,
+			high = array.length;
+	
+		while (low < high) {
+			var mid = (low + high) >>> 1;
+			if (array[mid].resultado < value.resultado) low = mid + 1;
+			else high = mid;
+		}
+		return low;
+	}
+}
+
+class WEA implements AlgorithmRunner{
+
+
+	dificultad_maxima: number;
+	numero_desado_cursos: number;
+	peso_rating: any;
+	pesos_objetivo: any;
+	soluciones: any;
+	arrayHorarioHorasNoDeseadas: any;
+	arrAllCursoSeccion: CursoSeccion[][];
+
+
+	CANT_ITERACIONES : number;
+	CANT_MUTACIONES_X_ITERACION: number;
+	CANT_SECCIONES_MUTADAS: number;
+	arrBestSolutions : ArrayBestSolutions<HorarioSolucion>;
+
+	
+
+	constructor(prm_arrAllCursoSeccion: CursoSeccion[][], prm_cantIteraciones: number) {
+		this.arrAllCursoSeccion = prm_arrAllCursoSeccion;
+		this.CANT_ITERACIONES = prm_cantIteraciones;
+		this.arrBestSolutions = new ArrayBestSolutions(5);
+	}
+
+	run() {
+		let start_time = new Date()
+
+
+		// PASO 1: Crear una solución vacia
+		let solucion = new HorarioSolucion( Array(this.arrAllCursoSeccion.length).fill(null));
+
+		// PASO 2: Para cada cantidad de iteración mutarlo
+		for (let i = 0; i < this.CANT_ITERACIONES; i++) {
+			// PASO 2.1: Generar mutaciones y aplicar hill climbing
+			let arrMutaciones = [];
+			for (let j = 0; j < this.CANT_MUTACIONES_X_ITERACION; j++) {
+				let mutacion = Object.assign({}, solucion);
+				this.mutar(mutacion, this.CANT_SECCIONES_MUTADAS);
+				this.hillClimbing(mutacion);
+				arrMutaciones.push(mutacion);
+			}
+			
+		}
+		console.log(`--- Tiempo de calculo del puntaje:  ${new Date().getTime() - start_time.getTime()} segundos ---`)
+	}
+
+	
+
+	getCross(cursoSeccionA: CursoSeccion, cursoSeccionB: CursoSeccion) { 
+		// no verifica si están en el mismo curso
+		for (let i = 0; i < cursoSeccionA.horario.length; i++) {
+			// (StartA <= EndB) and (EndA >= StartB)
+			if ((cursoSeccionA.horario[i][0] != 0 && cursoSeccionB.horario[i][0] != 0) &&
+				(cursoSeccionA.horario[i][0] < cursoSeccionB.horario[i][1]) && (cursoSeccionA.horario[i][1] > cursoSeccionB.horario[i][0])) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	evaluarSolucion(prm_horario: Array<CursoSeccion>) {
+		let horario_size: number = prm_horario.length;
+		let cantHuecoAcum = 0
+		let ratingAcum = 0
+		let dificultadAcum = 0
+		let horasNoDesadasAcum = 0
+		let prioridadAcum = 0
+		let cant_curso = 0
+
+		let horasClase = Array(horario_size).fill([0])
+		let limit = Array(horario_size).fill([[0, 0]])
+		let dificultad: Array<number> = Array(horario_size).fill([0])
+		
+
+		prm_horario.forEach(element => {
+			if (element != null) {
+				ratingAcum += element.docente.rating
+				prioridadAcum += element.curso.prioridad
+				cant_curso += 1
+				for (let index = 0; index < horario_size; index++) {  // cantidad de horas de hueco y horaio
+					let dmin = element.horario[index][0]
+					let dmax = element.horario[index][1]
+					limit[index] = [
+						(limit[index][0] == 0 || (dmin != 0 && dmin < limit[index][0])) ? dmin : limit[index][0],
+						(limit[index][1] == 0 || (dmax > limit[index][1])) ? dmax : limit[index][1]
+					];
+					horasClase[index] += element.horario[index][1] - element.horario[index][0]
+					dificultad[index] += element.curso.dificultad * (dmax - dmin) // dificultad_maxima
+					horasNoDesadasAcum += (dmin != 0) ? this.arrayHorarioHorasNoDeseadas.filter((val, ind) => {
+						return ind >= dmin - 7 && ind <= dmax - 7
+					}).reduce(function (valA, valB) {
+						return valA + valB;
+					}) : 0; // horasNoDesadasAcum
+				}
+			}
+		}); // prm_horario.forEach
+
+		for (let i = 0; i < horario_size; i++) {
+			if (limit[i][0] != 0)
+				cantHuecoAcum += limit[i][1] - limit[i][0] - horasClase[i]
+			dificultadAcum += dificultad[i] - ((dificultad[i] > this.dificultad_maxima) ? this.dificultad_maxima : 0);
+		}
+
+		let rating = ratingAcum * this.peso_rating
+		let o1 = - cantHuecoAcum * this.pesos_objetivo[1]
+		let o2 = - dificultadAcum * this.pesos_objetivo[2]
+		let o3 = - horasNoDesadasAcum * this.pesos_objetivo[3]
+		let o4 = - Math.abs(cant_curso - this.numero_desado_cursos) * this.pesos_objetivo[4]
+		let o5 = prioridadAcum * this.pesos_objetivo[5]
+
+		return {
+			"result": rating + o1 + o2 + o3 + o4 + o5,
+			"rating": rating,
+			"objetivos": [rating, o1, o2, o3, o4, o5]
+		}
+	} // evaluarSolucion
+
+	ruleta(prm_arrValues: Array<number>) {
+		
+		// PASO 1: Hallar la suma del arreglo de valores
+		var sum = prm_arrValues.reduce((a, b) => {
+			return a + b; 
+		}, 0);
+
+		// EXCEPCION: No hay mejores soluciones
+		if (sum == 0) return -1;
+
+		// PASO 2: Girar la ruleta y ver a que indice le tocó
+		var ruleta = Math.random() * sum;
+		var acum = 0;
+		for (let i = 0; i < prm_arrValues.length; i++) {
+			const element = prm_arrValues[i];
+			if (element >= acum && element <= (acum += element))
+				return i;
+		}
+	} // ruleta
+
+	hillClimbing(prm_horario: HorarioSolucion) : void {
+		const horario = prm_horario.horario;
+
+		// PASO 1: Generar arreglo con los indices de los cusos vacios del horario
+		var arrIndexesUnd: Array<number> = [];
+		horario.forEach((val, ind) => {
+			if (val == null)
+				arrIndexesUnd.push(ind);
+		});
+		arrIndexesUnd.shuffle();
+
+		// PASO 2: Por cada indice agregar un curso seccion
+		arrIndexesUnd.forEach( indiceCambio => {
+			// PASO 2.1: Obtener los cursos secciones que no se solapen
+			let arrSolFiltradas = this.arrAllCursoSeccion[indiceCambio].filter((val: CursoSeccion, indCurso) => {
+				for (let i = 0; i < horario.length; i++) {
+					if (horario[i] != null && this.getCross(horario[i], val))
+						return false;
+				}
+				return true;
+			});
+			if (arrSolFiltradas.length > 0) {
+			// PASO 2.2: Evaluar los cursos secciones y escoger uno nuevo mediante la ruleta
+				let arrSolFiltradas_valor = []
+				let arrSolFiltradas_valor_result = []
+				for (let j = 0; j < arrSolFiltradas.length; j++) { // recorre soluciones filtradas
+					const nuevoCursoSeccion = arrSolFiltradas[j];
+					let posibleHorario = horario.slice()
+					posibleHorario[indiceCambio] = nuevoCursoSeccion;
+					arrSolFiltradas_valor[j] = this.evaluarSolucion(posibleHorario);
+					arrSolFiltradas_valor_result[j] = (arrSolFiltradas_valor[j].result > 0) ? Math.pow(arrSolFiltradas_valor[j].result, 2) : 0;
+				}
+				const new_index_element = this.ruleta(arrSolFiltradas_valor_result);
+			// PASO 3.3: Agregar el nuevo curso seccion
+				if (new_index_element >= 0) // si no hay buena solución no inserta
+					horario[indiceCambio] = arrSolFiltradas[new_index_element]
+			}
+		});
+
+	} // hillClimbing
+
+	mutar(prm_horario: HorarioSolucion, cantIndicesMutacion: number): void {
+		const horario = prm_horario.horario;
+		// PASO 1: Seleccionar un curso y curso seccion aleatorio
+		let indMutacion = Math.floor(Math.random() * horario.length);
+		let cursoSeccion: CursoSeccion = this.arrAllCursoSeccion[indMutacion][Math.floor(Math.random() * this.arrAllCursoSeccion[indMutacion].length)];
+		// PASO 2: Borrar todos los cursos secciones que se solapan con nuevo curso seccion
+		horario.forEach((element, ind) => {
+			if (indMutacion == ind || this.getCross(cursoSeccion, element))
+				element = null;
+		});
+		// PASO 3: Guardar el nuevo curso seccion
+		horario[indMutacion] = cursoSeccion;
+	} // mutar
+}
+
+class CliqueAlgorithm implements AlgorithmRunner {
+	constructor(arrAllCursoSeccion: CursoSeccion[][]) {
+		throw new Error("Method not implemented.");
+	}
+	dificultad_maxima: number;
+	numero_desado_cursos: number;
+	peso_rating: any;
+	pesos_objetivo: any;
+	soluciones: any;
+	arrayHorarioHorasNoDeseadas: any;
+	arrAllCursoSeccion: CursoSeccion[][];
+
+	getCross(cursoSeccionA: CursoSeccion, cursoSeccionB: CursoSeccion): boolean {
+		if (cursoSeccionA.curso == cursoSeccionB.curso)
+			return true;
+		for (let i = 0; i < cursoSeccionA.horario.length; i++) {
+			// (StartA <= EndB) and (EndA >= StartB)
+			if ((cursoSeccionA.horario[i][0] != 0 && cursoSeccionB.horario[i][0] != 0) &&
+				(cursoSeccionA.horario[i][0] < cursoSeccionB.horario[i][1]) && (cursoSeccionA.horario[i][1] > cursoSeccionB.horario[i][0])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	evaluarSolucion(clique) {
 		let horario_size: number = clique[0].horario.length;
 		let cantHuecoAcum = 0
 		let ratingAcum = 0
@@ -535,4 +601,8 @@ class HorarioManager {
 			"objetivos": [rating, o1, o2, o3, o4, o5]
 		}
 	} // evaluar
-} // HorarioManager
+
+	run() {
+		throw new Error("Method not implemented.");
+	}
+}
