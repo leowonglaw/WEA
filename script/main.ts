@@ -258,7 +258,7 @@ class WEA implements AlgorithmRunner {
 	constructor(prm_arrAllCursoSeccion: CursoSeccion[][], prm_arrayHorarioHorasNoDeseadas, prm_cantIteraciones: number, prm_cantSeccionesMutadas: number, prm_cantBestSolucions: number) {
 		this.arrAllCursoSeccion = prm_arrAllCursoSeccion;
 		this.CANT_ITERACIONES = prm_cantIteraciones;
-		this.CANT_MUTACIONES_X_ITERACION = 1;
+		this.CANT_MUTACIONES_X_ITERACION = 50;
 		this.arrayHorarioHorasNoDeseadas = prm_arrayHorarioHorasNoDeseadas;
 		this.arrBestSolutions = new ArrayBestSolutions(prm_cantBestSolucions);
 	}
@@ -325,13 +325,13 @@ class WEA implements AlgorithmRunner {
 
 					horasClase[index] += (dmax - dmin)
 					dificultad[index] += element.curso.dificultad * (dmax - dmin) // dificultad_maxima
-					if (dmin != 0)
-						horasNoDesadasAcum += this.arrayHorarioHorasNoDeseadas.filter((val, ind) => {
-							return ind >= dmin - 7 && ind <= dmax - 7
-						}).reduce(function (valA, valB) {
-							//console.log(valA)
-							return valA[index] + valB[index];
-						}); // horasNoDesadasAcum
+					if (dmin != 0) {
+						let ind = dmin - 7,
+							finish = dmax - 7
+						for (; ind < finish; ind++) {
+							horasNoDesadasAcum += this.arrayHorarioHorasNoDeseadas[ind][index]
+						}
+					}
 				} // for
 			} // if
 		}); // forEach
@@ -684,7 +684,7 @@ class HorarioManager {
 		return arrayCursosSeccion
 	} // load_data
 
-	runWEA(prm_cantIteraciones: number = 1000, prm_cantSeccionesMutadas: number = 1, prm_cantBestSolucions: number = 50){
+	runWEA(prm_cantIteraciones: number = 100, prm_cantSeccionesMutadas: number = 1, prm_cantBestSolucions: number = 50){
 		
 		let start_time = new Date()
 		let wea = new WEA(this.arrAllCursoSeccion, this.arrayHorarioHorasNoDeseadas, prm_cantIteraciones, prm_cantSeccionesMutadas, prm_cantBestSolucions);
