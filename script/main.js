@@ -261,20 +261,26 @@ var WEA = /** @class */ (function () {
                 ratingAcum += element.docente.rating;
                 prioridadAcum += element.curso.prioridad;
                 cant_curso += 1;
-                for (var index = 0; index < element.horario.length; index++) {
+                var _loop_1 = function (index) {
                     // cantidad de horas de hueco y horario
-                    var dmin = element.horario[index][0], dmax = element.horario[index][1];
+                    dmin = element.horario[index][0], dmax = element.horario[index][1];
                     if (limit[index][0] == 0 || (dmin != 0 && dmin < limit[index][0]))
                         limit[index][0] = dmin;
                     if (limit[index][1] == 0 || (dmax > limit[index][1]))
                         limit[index][1] = dmax;
                     horasClase[index] += (dmax - dmin);
                     dificultad[index] += element.curso.dificultad * (dmax - dmin); // dificultad_maxima
-                    horasNoDesadasAcum += (dmin != 0) ? _this.arrayHorarioHorasNoDeseadas.filter(function (val, ind) {
-                        return ind >= dmin - 7 && ind <= dmax - 7;
-                    }).reduce(function (valA, valB) {
-                        return valA + valB;
-                    }) : 0; // horasNoDesadasAcum
+                    if (dmin != 0)
+                        horasNoDesadasAcum += _this.arrayHorarioHorasNoDeseadas.filter(function (val, ind) {
+                            return ind >= dmin - 7 && ind <= dmax - 7;
+                        }).reduce(function (valA, valB) {
+                            //console.log(valA)
+                            return valA[index] + valB[index];
+                        }); // horasNoDesadasAcum
+                };
+                var dmin, dmax;
+                for (var index = 0; index < element.horario.length; index++) {
+                    _loop_1(index);
                 } // for
             } // if
         }); // forEach
@@ -341,15 +347,19 @@ var WEA = /** @class */ (function () {
                     var posibleHorario = horario.slice();
                     posibleHorario[indiceCambio] = nuevoCursoSeccion;
                     arrSolFiltradas_valor[j] = _this.evaluarSolucion(posibleHorario);
+                    //console.log(arrSolFiltradas_valor[j])
                     arrSolFiltradas_valor_result[j] = (arrSolFiltradas_valor[j].result > 0) ? Math.pow(arrSolFiltradas_valor[j].result, 2) : 0;
                 }
                 var new_index_element = _this.ruleta(arrSolFiltradas_valor_result);
                 // PASO 3.3: Agregar el nuevo curso seccion
-                if (new_index_element >= 0) // si no hay buena solución no inserta
+                if (new_index_element >= 0) { // si no hay buena solución no inserta
                     horario[indiceCambio] = arrSolFiltradas[new_index_element];
+                    prm_horario.puntaje = arrSolFiltradas_valor[new_index_element].result;
+                    prm_horario.rating = arrSolFiltradas_valor[new_index_element].rating;
+                    prm_horario.objetivos = arrSolFiltradas_valor[new_index_element].objetivos;
+                }
             }
         });
-        console.log(prm_horario);
     }; // hillClimbing
     WEA.prototype.mutar = function (prm_horario, cantIndicesMutacion) {
         var _this = this;
@@ -398,7 +408,7 @@ var CliqueAlgorithm = /** @class */ (function () {
         clique.forEach(function (element) {
             ratingAcum += element.docente.rating;
             prioridadAcum += element.curso.prioridad;
-            var _loop_1 = function (index) {
+            var _loop_2 = function (index) {
                 var dmin = element.horario[index][0];
                 var dmax = element.horario[index][1];
                 limit[index] = [
@@ -414,7 +424,7 @@ var CliqueAlgorithm = /** @class */ (function () {
                 }) : 0; // horasNoDesadasAcum
             };
             for (var index = 0; index < horario_size; index++) {
-                _loop_1(index);
+                _loop_2(index);
             }
         }); // clique.forEach
         for (var i = 0; i < horario_size; i++) {
@@ -589,7 +599,8 @@ var HorarioManager = /** @class */ (function () {
         arrAux.push(curso_9_Seccion_2);
         this.arrAllCursoSeccion[8] = arrAux.slice();
         this.arrayHorarioHorasNoDeseadas =
-            [[3, 3, 3, 3, 3, 10],
+            [
+                [3, 3, 3, 3, 3, 10],
                 [0, 0, 0, 0, 0, 10],
                 [0, 0, 0, 0, 0, 10],
                 [0, 0, 0, 0, 0, 10],
@@ -603,7 +614,8 @@ var HorarioManager = /** @class */ (function () {
                 [0, 0, 0, 0, 0, 10],
                 [0, 0, 0, 0, 0, 10],
                 [0, 0, 0, 0, 5, 10],
-                [2, 2, 2, 2, 5, 10]];
+                [2, 2, 2, 2, 5, 10]
+            ];
         return arrayCursosSeccion;
     }; // load_data
     HorarioManager.prototype.runWEA = function (prm_cantIteraciones, prm_cantSeccionesMutadas, prm_cantBestSolucions) {
@@ -628,7 +640,6 @@ var HorarioManager = /** @class */ (function () {
         wea.run();
         console.log("--- Tiempo de calculo del puntaje:  " + (new Date().getTime() - start_time.getTime()) * 0.001 + " segundos ---");
         var arr = wea.arrBestSolutions;
-        console.log(arr.length);
         for (var i = 0; i < 10 && i < arr.length; i++) {
             var element = arr[i];
             //console.log(element);

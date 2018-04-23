@@ -325,11 +325,13 @@ class WEA implements AlgorithmRunner {
 
 					horasClase[index] += (dmax - dmin)
 					dificultad[index] += element.curso.dificultad * (dmax - dmin) // dificultad_maxima
-					horasNoDesadasAcum += (dmin != 0) ? this.arrayHorarioHorasNoDeseadas.filter((val, ind) => {
-						return ind >= dmin - 7 && ind <= dmax - 7
-					}).reduce(function (valA, valB) {
-						return valA + valB;
-					}) : 0; // horasNoDesadasAcum
+					if (dmin != 0)
+						horasNoDesadasAcum += this.arrayHorarioHorasNoDeseadas.filter((val, ind) => {
+							return ind >= dmin - 7 && ind <= dmax - 7
+						}).reduce(function (valA, valB) {
+							//console.log(valA)
+							return valA[index] + valB[index];
+						}); // horasNoDesadasAcum
 				} // for
 			} // if
 		}); // forEach
@@ -403,15 +405,19 @@ class WEA implements AlgorithmRunner {
 					let posibleHorario = horario.slice()
 					posibleHorario[indiceCambio] = nuevoCursoSeccion;
 					arrSolFiltradas_valor[j] = this.evaluarSolucion(posibleHorario);
+					//console.log(arrSolFiltradas_valor[j])
 					arrSolFiltradas_valor_result[j] = (arrSolFiltradas_valor[j].result > 0) ? Math.pow(arrSolFiltradas_valor[j].result, 2) : 0;
 				}
 				const new_index_element = this.ruleta(arrSolFiltradas_valor_result);
 			// PASO 3.3: Agregar el nuevo curso seccion
-				if (new_index_element >= 0) // si no hay buena solución no inserta
+				if (new_index_element >= 0) { // si no hay buena solución no inserta
 					horario[indiceCambio] = arrSolFiltradas[new_index_element]
+					prm_horario.puntaje = arrSolFiltradas_valor[new_index_element].result
+					prm_horario.rating = arrSolFiltradas_valor[new_index_element].rating
+					prm_horario.objetivos = arrSolFiltradas_valor[new_index_element].objetivos
+				}
 			}
 		});
-		console.log(prm_horario)
 	} // hillClimbing
 
 	mutar(prm_horario: HorarioSolucion, cantIndicesMutacion: number): void {
@@ -657,21 +663,23 @@ class HorarioManager {
 
 		
 		this.arrayHorarioHorasNoDeseadas =
-			[[3, 3, 3, 3, 3, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 0, 10],
-			[0, 0, 0, 0, 5, 10],
-			[2, 2, 2, 2, 5, 10]];
+			[
+				[3, 3, 3, 3, 3, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 0, 10],
+				[0, 0, 0, 0, 5, 10],
+				[2, 2, 2, 2, 5, 10]
+			];
 
 		return arrayCursosSeccion
 	} // load_data
