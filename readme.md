@@ -1,7 +1,7 @@
 # WEA-Clique
 
 An adaption of the [*Wong Evolutionary Algorithm* (WEA)](http://repositorio.ulima.edu.pe/handle/ulima/8723) for the maximum clique problem.
-It results to be a simple but slow genetic algorithm based on feasibility maintenance.
+It results to be a simple genetic algorithm based on feasibility maintenance.
 
 ## Getting Started
 - Download from the repository
@@ -56,4 +56,4 @@ python main.py --dataset=facebook/0.edges
 | **Fitness function**  | Clique size. |
 
 ## Performance
-Uncompared, but it may be very slow
+Uncompared

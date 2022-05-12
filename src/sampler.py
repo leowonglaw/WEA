@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import Union
 import snap
 
 from .models import Node, Graph

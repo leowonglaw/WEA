@@ -1,19 +1,16 @@
-from abc import ABC, abstractmethod
-from typing import List, Set, Union
-from dataclasses import dataclass
-import collections
+from typing import Set
 
 
 class Node:
     ''' A node of undirected graph '''
 
-    __slots__ = ['value', 'adjancency_list']
+    __slots__ = ['value', 'adjacency_list']
 
     def __init__(self):
-        self.adjancency_list: Set["Node"] = set()
+        self.adjacency_list: Set["Node"] = set()
 
     def is_compatible(self, other: "Node"):
-        return self != other and other not in self.adjancency_list
+        return self != other and other in self.adjacency_list
 
 
 class Graph:
@@ -27,8 +24,8 @@ class Graph:
     def add_edge(self, src: Node, dest: Node):
         self.vertices.add(src)
         self.vertices.add(dest)
-        src.adjancency_list.add(dest)
-        dest.adjancency_list.add(src)
+        src.adjacency_list.add(dest)
+        dest.adjacency_list.add(src)
 
 
 class Chromosome(list):
@@ -42,10 +39,7 @@ class Chromosome(list):
             self.append(gen)
 
     def is_gen_compatible(self, gen: Node):
-        for g in self:
-            if not gen.is_compatible(g):
-                return False
-        return True
+        return all(gen.is_compatible(g) for g in self)
 
     @property
     def fitness(self):
@@ -59,5 +53,5 @@ class Chromosome(list):
         return mutated_chromosome
 
     def filter_compatible_gens(self, gen: Node) -> "Chromosome":
-        filtered = [g for g in self if gen.is_compatible(g)]
+        filtered = (g for g in self if gen.is_compatible(g))
         return Chromosome(filtered)

@@ -1,8 +1,9 @@
 import random
 from typing import List, Tuple
+import heapq
 
 from .utils import timeit
-from .models import Node, Graph, Chromosome
+from .models import Graph, Chromosome
 
 
 class WEAClique:
@@ -10,14 +11,14 @@ class WEAClique:
 
     # STOP CONDITIONS
     ITERATIONS = 1000
-    MAX_UNCHANGE_FITTEST = 20
+    MAX_UNCHANGED_FITTEST = 20
 
     # SETTINGS
     POPULATION_SIZE = 100
     BIAS_PROBABILITY = 0.5 # UNIFORM CROSSOVER
-    MUTATION = 0.05
+    MUTATION = 0.15
     TOURNAMENT_SIZE = int(POPULATION_SIZE * 0.2)
-    MAX_HILLED = 2
+    MAX_HILLED = 3
     ELITE_SIZE = int(POPULATION_SIZE * 0.1)
 
     def __init__(self, graph: Graph):
@@ -26,7 +27,7 @@ class WEAClique:
         self.graph = graph
         self.generation = 0
         self.fittest = Chromosome()
-        self._unchange_fittest_count = 0
+        self._unchanged_fittest_count = 0
         self.population = list()
 
     @timeit
@@ -34,7 +35,7 @@ class WEAClique:
         self.population = self.create_initial_population()
         while not self.stop_condition:
             self.generation += 1
-            self.population = self.population_reeplacement()
+            self.population = self.population_replacement()
             fittest = self.population[0]
             self.__update_fittest(fittest)
             if self.generation % 10 == 0:
@@ -46,22 +47,22 @@ class WEAClique:
     def stop_condition(self) -> bool:
         return any([
             self.generation > self.ITERATIONS,
-            self._unchange_fittest_count > self.MAX_UNCHANGE_FITTEST,
+            self._unchanged_fittest_count > self.MAX_UNCHANGED_FITTEST,
         ])
 
-    def population_reeplacement(self) -> List[Chromosome]:
-        ''' Generational replacement model ELITE_SIZE based on fiteness'''
+    def population_replacement(self) -> List[Chromosome]:
+        ''' Generational replacement model ELITE_SIZE based on fitness'''
         NON_ELITE_SIZE = self.POPULATION_SIZE - self.ELITE_SIZE
         self.population.sort(key=lambda x: -x.fitness)
         new_population = self.population[:self.ELITE_SIZE]
         for _ in range(0, NON_ELITE_SIZE, 2):
             parents = self.select_parents(self.population)
-            childen = self.crossover(*parents)
-            childen = [self.mutate(child)
+            children = self.crossover(*parents)
+            children = [self.mutate(child)
                       if random.random() < self.MUTATION
                       else child
-                      for child in childen]
-            new_population.extend(childen)
+                      for child in children]
+            new_population.extend(children)
         new_population = [self.hill_climb(child) for child in new_population]
         return new_population
 
@@ -98,7 +99,7 @@ class WEAClique:
         '''
         improved_chromosome = chromosome
         hilled_count = 0
-        possible_improvements = set(self.graph.vertices) - set(chromosome)
+        possible_improvements = set(chromosome[0].adjacency_list) - set(chromosome)
         possible_improvements = [gen for gen in possible_improvements
                                 if chromosome.is_gen_compatible(gen)]
         random.shuffle(possible_improvements)
@@ -111,10 +112,7 @@ class WEAClique:
         return improved_chromosome
 
     def create_initial_population(self) -> List[Chromosome]:
-        ''' Random initialization.
-            The initial population will only contain 1 gen
-            # TODO initialization with multiple genes
-        '''
+        ''' Random initialization '''
         nodes = list(self.graph.vertices)
         population = [Chromosome([gen]) for gen in nodes[:self.POPULATION_SIZE]]
         missing_qt = self.POPULATION_SIZE - len(population)
@@ -122,26 +120,16 @@ class WEAClique:
             random.shuffle(nodes)
             addition = [Chromosome([gen]) for gen in nodes[:missing_qt]]
             population.extend(addition)
-        return population
+        return [self.hill_climb(a) for a in population]
 
     def select_parents(self, population) -> Tuple[Chromosome, Chromosome]:
         ''' Tournament selection '''
         tournament = random.sample(population, self.TOURNAMENT_SIZE)
-        # from https://stackoverflow.com/a/16226255
-        minimum = Chromosome()
-        first, second = minimum, minimum
-        for competitor in tournament:
-            if competitor.fitness < second.fitness:
-                continue
-            if competitor.fitness > first.fitness:
-                first, second = competitor, first
-            else:
-                second = competitor
-        return first, second
+        return heapq.nlargest(2, tournament, key=lambda x: x.fitness)
 
     def __update_fittest(self, fittest: Chromosome):
         if fittest.fitness <= self.fittest.fitness:
-            self._unchange_fittest_count += 1
+            self._unchanged_fittest_count += 1
         else:
             self.fittest = fittest
-            self._unchange_fittest_count = 0
+            self._unchanged_fittest_count = 0
