@@ -10,7 +10,7 @@ def import_nx_graph(nx_graph: nx.Graph) -> Graph:
     nodes = defaultdict(Node)
     for node_id in nx_graph.nodes():
         node = nodes[node_id]
-        for adjacent_node_id in nx_graph.edges(node_id):
+        for adjacent_node_id in nx_graph.neighbors(node_id):
             adjacent_node = nodes[adjacent_node_id]
             graph.add_edge(node, adjacent_node)
     return graph
