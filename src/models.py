@@ -4,13 +4,13 @@ from typing import Set
 class Node:
     ''' A node of undirected graph '''
 
-    __slots__ = ['value', 'adjacency_list']
+    __slots__ = ['adjacency_list']
 
     def __init__(self):
         self.adjacency_list: Set["Node"] = set()
 
     def is_compatible(self, other: "Node"):
-        return self != other and other in self.adjacency_list
+        return other in self.adjacency_list
 
 
 class Graph:

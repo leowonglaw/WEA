@@ -1,5 +1,5 @@
 import argparse
-from src.sampler import GraphSampler
+import src.loader as loader
 from src.wea import WEAClique
 
 
@@ -9,10 +9,9 @@ parser.add_argument("-d", "--dataset", help="use an .edges dataset")
 args = parser.parse_args()
 
 if __name__ == "__main__":
-    sampler = GraphSampler()
     if args.dataset:
-        sample_graph = sampler.from_data_set(args.dataset)
+        sample_graph = loader.load_from_relative_path(args.dataset)
     else:
-        sample_graph = sampler.generate_sample()
+        sample_graph = loader.generate_sample()
     wea = WEAClique(sample_graph)
     wea.run()

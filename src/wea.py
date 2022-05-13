@@ -7,14 +7,16 @@ from .models import Graph, Chromosome
 
 
 class WEAClique:
-    ''' A simple generic algorithm for the maximum clique problem with a feasibility maintenance approach '''
+    ''' A simple generic algorithm for the maximum clique problem
+        with a feasibility maintenance approach
+    '''
 
     # STOP CONDITIONS
     ITERATIONS = 1000
     MAX_UNCHANGED_FITTEST = 20
 
     # SETTINGS
-    POPULATION_SIZE = 100
+    POPULATION_SIZE = 1000
     BIAS_PROBABILITY = 0.5 # UNIFORM CROSSOVER
     MUTATION = 0.15
     TOURNAMENT_SIZE = int(POPULATION_SIZE * 0.2)
@@ -45,10 +47,10 @@ class WEAClique:
 
     @property
     def stop_condition(self) -> bool:
-        return any([
+        return any((
             self.generation > self.ITERATIONS,
             self._unchanged_fittest_count > self.MAX_UNCHANGED_FITTEST,
-        ])
+        ))
 
     def population_replacement(self) -> List[Chromosome]:
         ''' Generational replacement model ELITE_SIZE based on fitness'''
